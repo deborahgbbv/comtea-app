@@ -94,8 +94,8 @@ input,textarea{width:100%;padding:10px;margin:6px 0;border-radius:8px;border:1px
 const SUPABASE_URL = "https://ftvsdjazqwbonanaihwh.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ0dnNkamF6cXdib25hbmFpaHdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NjIyNzMsImV4cCI6MjA5NjAzODI3M30.AOJh70E0Opgj86sHKNivkeL1fOptIBAaeoGuSEyRgQY";
 
-// --- PERBAIKAN DI SINI: Menggunakan supabase.createClient secara langsung ---
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// --- PERBAIKAN: Menggunakan window.supabase agar tidak tabrakan nama ---
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let games = 0, contacts = 0;
 let globalUsers = []; 
@@ -128,7 +128,7 @@ function checkTrivia(selected,correct){if(selected===correct){alert("✅ Benar!"
 // --- FUNGSI DATABASE SUPABASE ---
 
 async function fetchInitialUsers() {
-    const { data, error } = await supabase.from('users').select('*').order('created_at', { ascending: false });
+    const { data, error } = await supabaseClient.from('users').select('*').order('created_at', { ascending: false });
     if (error) {
         console.error('Gagal mengambil data:', error);
     } else {
@@ -149,7 +149,7 @@ async function saveUser(){
         return;
     }
 
-    const { error } = await supabase.from('users').insert([
+    const { error } = await supabaseClient.from('users').insert([
         { name: nameVal, phone: phoneVal, hobby: hobbyVal, bio: bioVal }
     ]);
 
@@ -166,16 +166,14 @@ async function saveUser(){
 
     toast('Pendaftaran berhasil!');
     
-    // Refresh data secara manual setelah daftar agar langsung muncul
     await fetchInitialUsers();
     showPage('community');
 }
 
 function listenRealtime() {
-    supabase
+    supabaseClient
         .channel('schema-db-changes')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'users' }, payload => {
-            // Cek apakah data sudah ada di array untuk menghindari duplikasi
             if (!globalUsers.some(u => u.id === payload.new.id)) {
                 globalUsers.unshift(payload.new);
                 renderUsers();
