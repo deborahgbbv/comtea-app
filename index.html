@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>COMTEA</title>
+<style>
+:root{--brown:#5c3d2e;--gold:#c9933a;--cream:#fdf6ec;--green:#4caf50}
+*{box-sizing:border-box} body{margin:0;font-family:Segoe UI;background:var(--cream)}
+header{background:linear-gradient(135deg,var(--brown),var(--gold));color:#fff;padding:40px;text-align:center}
+nav{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;background:#fff;padding:12px;position:sticky;top:0;box-shadow:0 2px 10px rgba(0,0,0,.1)}
+nav button,.btn{border:none;padding:10px 16px;border-radius:10px;cursor:pointer;background:var(--gold);color:#fff}
+.page{display:none;padding:20px;max-width:1200px;margin:auto}
+.active{display:block}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:15px}
+.card{background:#fff;border-radius:18px;padding:18px;box-shadow:0 4px 12px rgba(0,0,0,.08)}
+.stat{font-size:32px;font-weight:bold;color:var(--brown)}
+input,textarea{width:100%;padding:10px;margin:6px 0;border-radius:8px;border:1px solid #ccc}
+.profile{border:1px solid #ddd;border-radius:14px;padding:12px;margin:10px 0;background:#fafafa}
+.badge{background:var(--green);color:#fff;padding:4px 10px;border-radius:20px;font-size:12px}
+.toast{position:fixed;right:20px;bottom:20px;background:#333;color:#fff;padding:12px;border-radius:10px;display:none;z-index:999}
+.btn-wa{display:inline-block;margin-top:10px;padding:8px 12px;background:#25D366;color:white;text-decoration:none;border-radius:8px;font-weight:bold;font-size:14px}
+</style>
+</head>
+<body>
+<header>
+<h1>🍵 COMTEA</h1>
+<h2 class="hero-subtitle">Connect Over Tea</h2>
+<p>Social Experience for Tea Lovers</p>
+</header>
+
+<nav>
+<button onclick="showPage('dashboard')">Dashboard</button>
+<button onclick="showPage('topics')">Topik</button>
+<button onclick="showPage('games')">Games</button>
+<button onclick="showPage('community')">Komunitas</button>
+<button onclick="showPage('register')">Daftar</button>
+</nav>
+
+<section id="dashboard" class="page active">
+<div class="grid">
+<div class="card"><div class="stat" id="mCount">0</div>Member</div>
+<div class="card"><div class="stat" id="gCount">0</div>Games</div>
+<div class="card"><div class="stat" id="cCount">0</div>Kontak</div>
+</div>
+<br>
+<div class="card">
+<h2>Tentang COMTEA</h2>
+<p>Platform interaksi pelanggan gerai teh untuk memulai percakapan, bermain bersama, dan menemukan teman baru berdasarkan kesamaan minat.</p>
+</div>
+</section>
+
+<section id="topics" class="page">
+<div class="card">
+<h2>Generator Topik Percakapan</h2>
+<button class="btn" onclick="newTopic()">Topik Acak</button>
+<h3 id="topicBox">Klik tombol untuk memulai percakapan.</h3>
+</div>
+</section>
+
+<section id="games" class="page">
+<div class="grid">
+<div class="card"><h3>Truth or Dare</h3><button class="btn" onclick="truth()">Truth</button> <button class="btn" onclick="dare()">Dare</button><p id="tod"></p></div>
+<div class="card"><h3>Would You Rather</h3><button class="btn" onclick="wyr()">Generate</button><p id="wyrBox"></p></div>
+</div>
+<br>
+<div class="card"><h3>Trivia</h3><button class="btn" onclick="trivia()">Soal Baru</button><div id="triviaBox"></div></div>
+</section>
+
+<section id="community" class="page">
+<div class="card">
+<h2>Cari Teman</h2>
+<input id="search" placeholder="Cari nama atau hobi..." oninput="renderUsers()">
+<div id="users"></div>
+</div>
+</section>
+
+<section id="register" class="page">
+<div class="card">
+<h2>Daftarkan Dirimu</h2>
+<input id="regName" placeholder="Nama">
+<input id="regPhone" placeholder="Nomor WhatsApp (Contoh: 62812345678)">
+<input id="regHobby" placeholder="Hobi (musik, film, travel...)">
+<textarea id="regBio" placeholder="Bio singkat"></textarea>
+<button class="btn" onclick="saveUser()">Daftar</button>
+</div>
+</section>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let games=0,contacts=0;
+
+function showPage(id){
+document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+document.getElementById(id).classList.add('active');
+if(id==='community') renderUsers();
+}
+
+function toast(t){
+let x=document.getElementById('toast');
+x.innerText=t;x.style.display='block';
+setTimeout(()=>x.style.display='none',2000);
+}
+
+// ... (Data topics, truths, dares, wyrs, dan triv tetap sama seperti kode asli kamu) ...
+const topics=["Kalau bisa tinggal di negara mana pun selama 1 tahun gratis, kamu pilih di mana?","Apa makanan yang bisa kamu makan setiap hari tanpa bosan?","Kalau besok tidak perlu bekerja atau kuliah lagi, kamu akan melakukan apa?","Siapa tokoh terkenal yang paling ingin kamu ajak ngobrol?","Apa skill yang paling ingin kamu kuasai saat ini?"];
+function newTopic(){topicBox.innerText=topics[Math.floor(Math.random()*topics.length)]}
+const truths=["Apa ketakutan terbesarmu?","Siapa crush pertamamu?","Apa hal paling memalukan yang pernah terjadi padamu?"];
+const dares=["Nyanyikan lagu favoritmu selama 20 detik.","Peragakan kucing selama 30 detik.","Bicara dengan aksen Inggris selama 1 menit."];
+function truth(){tod.innerText=truths[Math.floor(Math.random()*truths.length)];incGame()}
+function dare(){tod.innerText=dares[Math.floor(Math.random()*dares.length)];incGame()}
+const wyrs=[["Bisa terbang", "Bisa tak terlihat"],["Hidup tanpa internet", "Hidup tanpa musik"]];
+function wyr(){let q=wyrs[Math.floor(Math.random()*wyrs.length)];wyrBox.innerHTML=q[0]+" <b>ATAU</b> "+q[1];incGame()}
+const triv=[{question:"Ibukota Jepang adalah?",options:["Osaka","Tokyo","Kyoto","Nagoya"],answer:1}];
+function trivia(){let t=triv[Math.floor(Math.random()*triv.length)];let h=`<h4>${t.question}</h4>`;t.options.forEach((v,i)=>{h+=`<button class="btn" onclick="checkTrivia(${i},${t.answer})">${v}</button> `;});triviaBox.innerHTML=h;incGame()}
+function checkTrivia(selected,correct){if(selected===correct){alert("✅ Benar!");}else{alert("❌ Salah!");}}
+
+// --- BAGIAN YANG DIPERBAIKI ---
+
+function getUsers(){
+return JSON.parse(localStorage.getItem('comtea3')||'[]');
+}
+
+function saveUser(){
+let nameVal = document.getElementById('regName').value;
+let phoneVal = document.getElementById('regPhone').value;
+let hobbyVal = document.getElementById('regHobby').value;
+let bioVal = document.getElementById('regBio').value;
+
+if(!nameVal || !phoneVal){
+alert('Nama dan Nomor WhatsApp wajib diisi!');
+return;
+}
+
+let arr=getUsers();
+arr.push({name:nameVal,phone:phoneVal,hobby:hobbyVal,bio:bioVal});
+localStorage.setItem('comtea3',JSON.stringify(arr));
+
+// Reset isi form pendaftaran
+document.getElementById('regName').value = '';
+document.getElementById('regPhone').value = '';
+document.getElementById('regHobby').value = '';
+document.getElementById('regBio').value = '';
+
+toast('Pendaftaran berhasil!');
+updateStats();
+
+// OTOMATIS PINDAH KE HALAMAN KOMUNITAS SETELAH DAFTAR
+showPage('community');
+}
+
+function renderUsers(){
+let arr=getUsers();
+let q=(document.getElementById('search').value||'').toLowerCase();
+let usersContainer = document.getElementById('users');
+usersContainer.innerHTML='';
+
+if(arr.length === 0){
+usersContainer.innerHTML = '<p style="color:gray;">Belum ada anggota yang mendaftar.</p>';
+return;
+}
+
+let filtered = arr.filter(u=> 
+(u.name && u.name.toLowerCase().includes(q)) || 
+(u.hobby && u.hobby.toLowerCase().includes(q))
+);
+
+if(filtered.length === 0){
+usersContainer.innerHTML = '<p style="color:gray;">Anggota atau hobi tidak ditemukan.</p>';
+return;
+}
+
+filtered.forEach(u=>{
+let score=Math.floor(Math.random()*100)+1;
+let badge=score>70?'🔥 Best Match':score>40?'⭐ Cocok':'🙂 Kenalan Baru';
+let div=document.createElement('div');
+div.className='profile';
+div.innerHTML=`
+<h3>${u.name}</h3>
+<p>${u.bio || '-'}</p>
+<p><b>Hobi:</b> ${u.hobby || '-'}</p>
+<p><span class='badge'>${badge} (${score}%)</span></p>
+<a class="btn-wa" href="https://wa.me/${u.phone}" target="_blank" onclick="contacts++;updateStats()">Hubungi WhatsApp</a>`;
+usersContainer.appendChild(div);
+});
+}
+
+function incGame(){games++;updateStats()}
+function updateStats(){
+mCount.innerText=getUsers().length;
+gCount.innerText=games;
+cCount.innerText=contacts;
+}
+// Jalankan fungsi awal
+updateStats();
+</script>
+</body>
+</html>
