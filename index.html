@@ -90,15 +90,15 @@ input,textarea{width:100%;padding:10px;margin:6px 0;border-radius:8px;border:1px
 <div class="toast" id="toast"></div>
 
 <script>
-// Konfigurasi Supabase (GANTI DENGAN MILIKMU)
+// Konfigurasi Supabase Kamu
 const SUPABASE_URL = "https://ftvsdjazqwbonanaihwh.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ0dnNkamF6cXdib25hbmFpaHdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NjIyNzMsImV4cCI6MjA5NjAzODI3M30.AOJh70E0Opgj86sHKNivkeL1fOptIBAaeoGuSEyRgQY";
 
-// Inisialisasi Klien Supabase
-const supabase = libSupabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// --- PERBAIKAN DI SINI: Menggunakan supabase.createClient secara langsung ---
+const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let games = 0, contacts = 0;
-let globalUsers = []; // Variabel lokal untuk menampung data dari database
+let globalUsers = []; 
 
 function showPage(id){
     document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -127,19 +127,17 @@ function checkTrivia(selected,correct){if(selected===correct){alert("✅ Benar!"
 
 // --- FUNGSI DATABASE SUPABASE ---
 
-// 1. Fungsi Mengambil Data Pertama Kali (Fetch)
 async function fetchInitialUsers() {
     const { data, error } = await supabase.from('users').select('*').order('created_at', { ascending: false });
     if (error) {
         console.error('Gagal mengambil data:', error);
     } else {
-        globalUsers = data;
+        globalUsers = data || [];
         renderUsers();
         updateStats();
     }
 }
 
-// 2. Fungsi Menyimpan User Baru ke Cloud Database
 async function saveUser(){
     let nameVal = document.getElementById('regName').value;
     let phoneVal = document.getElementById('regPhone').value;
@@ -151,7 +149,6 @@ async function saveUser(){
         return;
     }
 
-    // Kirim data ke Supabase
     const { error } = await supabase.from('users').insert([
         { name: nameVal, phone: phoneVal, hobby: hobbyVal, bio: bioVal }
     ]);
@@ -162,31 +159,33 @@ async function saveUser(){
         return;
     }
 
-    // Reset form pendaftaran
     document.getElementById('regName').value = '';
     document.getElementById('regPhone').value = '';
     document.getElementById('regHobby').value = '';
     document.getElementById('regBio').value = '';
 
     toast('Pendaftaran berhasil!');
+    
+    // Refresh data secara manual setelah daftar agar langsung muncul
+    await fetchInitialUsers();
     showPage('community');
 }
 
-// 3. Fungsi Mendengarkan Perubahan Data Secara REALTIME
 function listenRealtime() {
     supabase
         .channel('schema-db-changes')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'users' }, payload => {
-            // Ketika ada baris baru masuk, masukkan ke array lokal di urutan paling atas
-            globalUsers.unshift(payload.new);
-            renderUsers();
-            updateStats();
-            toast(`Ada member baru bergabung: ${payload.new.name}! 🎉`);
+            // Cek apakah data sudah ada di array untuk menghindari duplikasi
+            if (!globalUsers.some(u => u.id === payload.new.id)) {
+                globalUsers.unshift(payload.new);
+                renderUsers();
+                updateStats();
+                toast(`Ada member baru bergabung: ${payload.new.name}! 🎉`);
+            }
         })
         .subscribe();
 }
 
-// 4. Fungsi Menampilkan Data ke Layar
 function renderUsers(){
     let q = (document.getElementById('search').value || '').toLowerCase();
     let usersContainer = document.getElementById('users');
@@ -208,7 +207,6 @@ function renderUsers(){
     }
 
     filtered.forEach(u => {
-        // Pseudo-random match score konsisten berdasarkan ID unik database
         let score = ((u.id * 17) % 60) + 40; 
         let badge = score > 85 ? '🔥 Best Match' : score > 65 ? '⭐ Cocok' : '🙂 Kenalan Baru';
         let div = document.createElement('div');
