@@ -21,6 +21,7 @@ input,textarea{width:100%;padding:10px;margin:6px 0;border-radius:8px;border:1px
 .toast{position:fixed;right:20px;bottom:20px;background:#333;color:#fff;padding:12px;border-radius:10px;display:none;z-index:999}
 .btn-wa{display:inline-block;margin-top:10px;padding:8px 12px;background:#25D366;color:white;text-decoration:none;border-radius:8px;font-weight:bold;font-size:14px}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 <header>
@@ -89,21 +90,29 @@ input,textarea{width:100%;padding:10px;margin:6px 0;border-radius:8px;border:1px
 <div class="toast" id="toast"></div>
 
 <script>
-let games=0,contacts=0;
+// Konfigurasi Supabase (GANTI DENGAN MILIKMU)
+const SUPABASE_URL = "https://ftvsdjazqwbonanaihwh.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ0dnNkamF6cXdib25hbmFpaHdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NjIyNzMsImV4cCI6MjA5NjAzODI3M30.AOJh70E0Opgj86sHKNivkeL1fOptIBAaeoGuSEyRgQY";
+
+// Inisialisasi Klien Supabase
+const supabase = libSupabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let games = 0, contacts = 0;
+let globalUsers = []; // Variabel lokal untuk menampung data dari database
 
 function showPage(id){
-document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-document.getElementById(id).classList.add('active');
-if(id==='community') renderUsers();
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    if(id==='community') renderUsers();
 }
 
 function toast(t){
-let x=document.getElementById('toast');
-x.innerText=t;x.style.display='block';
-setTimeout(()=>x.style.display='none',2000);
+    let x=document.getElementById('toast');
+    x.innerText=t;x.style.display='block';
+    setTimeout(()=>x.style.display='none',2000);
 }
 
-// ... (Data topics, truths, dares, wyrs, dan triv tetap sama seperti kode asli kamu) ...
+// Data Games & Topics
 const topics=["Kalau bisa tinggal di negara mana pun selama 1 tahun gratis, kamu pilih di mana?","Apa makanan yang bisa kamu makan setiap hari tanpa bosan?","Kalau besok tidak perlu bekerja atau kuliah lagi, kamu akan melakukan apa?","Siapa tokoh terkenal yang paling ingin kamu ajak ngobrol?","Apa skill yang paling ingin kamu kuasai saat ini?"];
 function newTopic(){topicBox.innerText=topics[Math.floor(Math.random()*topics.length)]}
 const truths=["Apa ketakutan terbesarmu?","Siapa crush pertamamu?","Apa hal paling memalukan yang pernah terjadi padamu?"];
@@ -116,84 +125,114 @@ const triv=[{question:"Ibukota Jepang adalah?",options:["Osaka","Tokyo","Kyoto",
 function trivia(){let t=triv[Math.floor(Math.random()*triv.length)];let h=`<h4>${t.question}</h4>`;t.options.forEach((v,i)=>{h+=`<button class="btn" onclick="checkTrivia(${i},${t.answer})">${v}</button> `;});triviaBox.innerHTML=h;incGame()}
 function checkTrivia(selected,correct){if(selected===correct){alert("✅ Benar!");}else{alert("❌ Salah!");}}
 
-// --- BAGIAN YANG DIPERBAIKI ---
+// --- FUNGSI DATABASE SUPABASE ---
 
-function getUsers(){
-return JSON.parse(localStorage.getItem('comtea3')||'[]');
+// 1. Fungsi Mengambil Data Pertama Kali (Fetch)
+async function fetchInitialUsers() {
+    const { data, error } = await supabase.from('users').select('*').order('created_at', { ascending: false });
+    if (error) {
+        console.error('Gagal mengambil data:', error);
+    } else {
+        globalUsers = data;
+        renderUsers();
+        updateStats();
+    }
 }
 
-function saveUser(){
-let nameVal = document.getElementById('regName').value;
-let phoneVal = document.getElementById('regPhone').value;
-let hobbyVal = document.getElementById('regHobby').value;
-let bioVal = document.getElementById('regBio').value;
+// 2. Fungsi Menyimpan User Baru ke Cloud Database
+async function saveUser(){
+    let nameVal = document.getElementById('regName').value;
+    let phoneVal = document.getElementById('regPhone').value;
+    let hobbyVal = document.getElementById('regHobby').value;
+    let bioVal = document.getElementById('regBio').value;
 
-if(!nameVal || !phoneVal){
-alert('Nama dan Nomor WhatsApp wajib diisi!');
-return;
+    if(!nameVal || !phoneVal){
+        alert('Nama dan Nomor WhatsApp wajib diisi!');
+        return;
+    }
+
+    // Kirim data ke Supabase
+    const { error } = await supabase.from('users').insert([
+        { name: nameVal, phone: phoneVal, hobby: hobbyVal, bio: bioVal }
+    ]);
+
+    if (error) {
+        alert('Gagal mendaftar, coba lagi.');
+        console.error(error);
+        return;
+    }
+
+    // Reset form pendaftaran
+    document.getElementById('regName').value = '';
+    document.getElementById('regPhone').value = '';
+    document.getElementById('regHobby').value = '';
+    document.getElementById('regBio').value = '';
+
+    toast('Pendaftaran berhasil!');
+    showPage('community');
 }
 
-let arr=getUsers();
-arr.push({name:nameVal,phone:phoneVal,hobby:hobbyVal,bio:bioVal});
-localStorage.setItem('comtea3',JSON.stringify(arr));
-
-// Reset isi form pendaftaran
-document.getElementById('regName').value = '';
-document.getElementById('regPhone').value = '';
-document.getElementById('regHobby').value = '';
-document.getElementById('regBio').value = '';
-
-toast('Pendaftaran berhasil!');
-updateStats();
-
-// OTOMATIS PINDAH KE HALAMAN KOMUNITAS SETELAH DAFTAR
-showPage('community');
+// 3. Fungsi Mendengarkan Perubahan Data Secara REALTIME
+function listenRealtime() {
+    supabase
+        .channel('schema-db-changes')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'users' }, payload => {
+            // Ketika ada baris baru masuk, masukkan ke array lokal di urutan paling atas
+            globalUsers.unshift(payload.new);
+            renderUsers();
+            updateStats();
+            toast(`Ada member baru bergabung: ${payload.new.name}! 🎉`);
+        })
+        .subscribe();
 }
 
+// 4. Fungsi Menampilkan Data ke Layar
 function renderUsers(){
-let arr=getUsers();
-let q=(document.getElementById('search').value||'').toLowerCase();
-let usersContainer = document.getElementById('users');
-usersContainer.innerHTML='';
+    let q = (document.getElementById('search').value || '').toLowerCase();
+    let usersContainer = document.getElementById('users');
+    usersContainer.innerHTML = '';
 
-if(arr.length === 0){
-usersContainer.innerHTML = '<p style="color:gray;">Belum ada anggota yang mendaftar.</p>';
-return;
-}
+    if(globalUsers.length === 0){
+        usersContainer.innerHTML = '<p style="color:gray;">Belum ada anggota yang mendaftar.</p>';
+        return;
+    }
 
-let filtered = arr.filter(u=> 
-(u.name && u.name.toLowerCase().includes(q)) || 
-(u.hobby && u.hobby.toLowerCase().includes(q))
-);
+    let filtered = globalUsers.filter(u => 
+        (u.name && u.name.toLowerCase().includes(q)) || 
+        (u.hobby && u.hobby.toLowerCase().includes(q))
+    );
 
-if(filtered.length === 0){
-usersContainer.innerHTML = '<p style="color:gray;">Anggota atau hobi tidak ditemukan.</p>';
-return;
-}
+    if(filtered.length === 0){
+        usersContainer.innerHTML = '<p style="color:gray;">Anggota atau hobi tidak ditemukan.</p>';
+        return;
+    }
 
-filtered.forEach(u=>{
-let score=Math.floor(Math.random()*100)+1;
-let badge=score>70?'🔥 Best Match':score>40?'⭐ Cocok':'🙂 Kenalan Baru';
-let div=document.createElement('div');
-div.className='profile';
-div.innerHTML=`
-<h3>${u.name}</h3>
-<p>${u.bio || '-'}</p>
-<p><b>Hobi:</b> ${u.hobby || '-'}</p>
-<p><span class='badge'>${badge} (${score}%)</span></p>
-<a class="btn-wa" href="https://wa.me/${u.phone}" target="_blank" onclick="contacts++;updateStats()">Hubungi WhatsApp</a>`;
-usersContainer.appendChild(div);
-});
+    filtered.forEach(u => {
+        // Pseudo-random match score konsisten berdasarkan ID unik database
+        let score = ((u.id * 17) % 60) + 40; 
+        let badge = score > 85 ? '🔥 Best Match' : score > 65 ? '⭐ Cocok' : '🙂 Kenalan Baru';
+        let div = document.createElement('div');
+        div.className = 'profile';
+        div.innerHTML = `
+            <h3>${u.name}</h3>
+            <p>${u.bio || '-'}</p>
+            <p><b>Hobi:</b> ${u.hobby || '-'}</p>
+            <p><span class='badge'>${badge} (${score}%)</span></p>
+            <a class="btn-wa" href="https://wa.me/${u.phone}" target="_blank" onclick="contacts++;updateStats()">Hubungi WhatsApp</a>`;
+        usersContainer.appendChild(div);
+    });
 }
 
 function incGame(){games++;updateStats()}
 function updateStats(){
-mCount.innerText=getUsers().length;
-gCount.innerText=games;
-cCount.innerText=contacts;
+    mCount.innerText = globalUsers.length;
+    gCount.innerText = games;
+    cCount.innerText = contacts;
 }
-// Jalankan fungsi awal
-updateStats();
+
+// Menjalankan fungsi awal saat web dimuat
+fetchInitialUsers();
+listenRealtime();
 </script>
 </body>
 </html>
