@@ -33,9 +33,17 @@ input,textarea{width:100%;padding:10px;margin:6px 0;border-radius:8px;border:1px
 .msg { padding: 10px 14px; border-radius: 12px; max-width: 75%; width: fit-content; word-break: break-word; line-height: 1.4; }
 .msg-other { background: #f1f0f0; align-self: flex-start; color: #333; }
 .msg-me { background: #e2f0d9; align-self: flex-end; color: #2e511c; border-bottom-right-radius: 2px; }
-.msg-user { font-weight: bold; font-size: 12px; display: block; margin-bottom: 3px; color: var(--brown); }
+.msg-user { font-weight: bold; font-size: 12px; display: block; margin-bottom: 3px; color: var(--brown); cursor: pointer; text-decoration: underline; }
+.msg-user:hover { color: var(--gold); }
 .msg-text { font-size: 14px; }
 .username-info { font-size: 13px; color: gray; margin-bottom: 8px; display: block; }
+
+/* --- STYLE UNTUK MODAL POPUP DETAIL PROFIL --- */
+.modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); align-items: center; justify-content: center; }
+.modal-content { background-color: #fff; padding: 24px; border-radius: 18px; width: 90%; max-width: 400px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); position: relative; animation: fadeIn 0.3s; }
+.close-modal { position: absolute; top: 12px; right: 18px; font-size: 24px; cursor: pointer; color: #aaa; }
+.close-modal:hover { color: #333; }
+@keyframes fadeIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -100,6 +108,7 @@ input,textarea{width:100%;padding:10px;margin:6px 0;border-radius:8px;border:1px
 <div class="card">
 <h2>Teahouse Group Chat 💬</h2>
 <span id="chatUserSession" class="username-info">Memeriksa status pendaftaran...</span>
+<p style="font-size: 11px; color: var(--gold); margin-top: -5px;">💡 Tips: Klik pada nama pengirim chat untuk melihat detail profil mereka!</p>
 <div class="chat-container">
 <div class="chat-box" id="chatBox">
 <p style="text-align: center; color: gray; font-size: 14px;">Memuat obrolan...</p>
@@ -114,7 +123,7 @@ input,textarea{width:100%;padding:10px;margin:6px 0;border-radius:8px;border:1px
 
 <section id="register" class="page">
 <div id="currentSessionCard" class="card" style="display:none; background:#e2f0d9;">
-    <h3 style="margin-top:0; color:#2e511c;">👋 Halo, <span id="sessionNameDisplay"></span>!</h3>
+    <h3 style="margin-top:0; color:#2e511c;">👋 Halo, @<span id="sessionNameDisplay"></span>!</h3>
     <p style="font-size:14px; color:#3e662b; margin-bottom:12px;">Perangkat ini sudah terhubung dengan akun membership kamu. Kamu bebas mengakses tab Komunitas dan Grup Chat.</p>
     <button class="btn" style="background:#5c3d2e;" onclick="logoutUser()">Ganti Akun / Keluar</button>
 </div>
@@ -123,9 +132,9 @@ input,textarea{width:100%;padding:10px;margin:6px 0;border-radius:8px;border:1px
     <h2>Daftarkan Dirimu</h2>
     <div class="note-box">
         ℹ️ <b>Pemberitahuan Penting:</b><br>
-        Nomor WhatsApp yang kamu cantumkan di bawah ini akan digunakan sekaligus sebagai <b>Nomor Membership Toko</b> dan identitas kamu untuk bergabung ke dalam <b>Komunitas Comtea</b>. Setiap nomor hanya bisa didaftarkan satu kali.
+        Nomor WhatsApp yang kamu cantumkan di bawah ini akan digunakan sekaligus sebagai <b>Nomor Membership Toko</b> dan identitas kamu untuk bergabung ke dalam <b>Komunitas Comtea</b>. Setiap nomor dan username hanya bisa didaftarkan satu kali.
     </div>
-    <input id="regName" placeholder="Nama / Username">
+    <input id="regName" placeholder="Username unik (tanpa spasi, contoh: teajourney)">
     <input id="regPhone" placeholder="Nomor WhatsApp (Contoh: 62812345678)">
     <input id="regHobby" placeholder="Hobi (musik, film, travel...)">
     <textarea id="regBio" placeholder="Bio singkat"></textarea>
@@ -134,11 +143,21 @@ input,textarea{width:100%;padding:10px;margin:6px 0;border-radius:8px;border:1px
     <div class="divider">ATAU</div>
 
     <h2>Buka di Perangkat Lain?</h2>
-    <p style="font-size:14px; color:gray; margin-top:0;">Jika kamu sudah pernah mendaftar di HP/perangkat lain, masukkan Nama/Username terdaftar kamu di bawah ini untuk sinkronisasi data:</p>
-    <input id="loginName" placeholder="Masukkan Nama/Username Kamu">
+    <p style="font-size:14px; color:gray; margin-top:0;">Jika kamu sudah pernah mendaftar di HP/perangkat lain, masukkan Username terdaftar kamu di bawah ini untuk sinkronisasi data:</p>
+    <input id="loginName" placeholder="Masukkan Username Kamu">
     <button class="btn" style="background:var(--brown);" onclick="loginUser()">Hubungkan Perangkat</button>
 </div>
 </section>
+
+<div id="profileModal" class="modal" onclick="if(event.target===this) closeProfileModal()">
+    <div class="modal-content">
+        <span class="close-modal" onclick="closeProfileModal()">&times;</span>
+        <h2 id="modalName" style="margin-top:0; color:var(--brown);">Username</h2>
+        <p id="modalBio" style="font-style: italic; color: #555;">-</p>
+        <p><b>Hobi:</b> <span id="modalHobby">-</span></p>
+        <div id="modalWaContainer"></div>
+    </div>
+</div>
 
 <div class="toast" id="toast"></div>
 
@@ -200,15 +219,13 @@ function renderRegisterPage() {
     }
 }
 
-// FUNGSI UNTUK AUTO-SAVE / SINKRONISASI AKUN DI DEVICE LAIN
 async function loginUser() {
     let inputName = document.getElementById('loginName').value.trim();
     if(!inputName) {
-        alert("Silakan masukkan Nama/Username terdaftar kamu!");
+        alert("Silakan masukkan Username terdaftar kamu!");
         return;
     }
 
-    // Cari nama di database Supabase
     const { data, error } = await supabaseClient
         .from('users')
         .select('name')
@@ -221,14 +238,13 @@ async function loginUser() {
     }
 
     if(data) {
-        // Jika nama ditemukan, auto-save ke device baru ini
         currentUser = data.name;
         localStorage.setItem('comtea_username', data.name);
         toast(`Berhasil sinkronisasi! Selamat datang kembali, ${data.name}.`);
         document.getElementById('loginName').value = '';
         showPage('dashboard');
     } else {
-        alert("Nama/Username tidak ditemukan. Pastikan ketikan huruf besar/kecilnya sama persis saat mendaftar.");
+        alert("Username tidak ditemukan. Periksa kembali huruf besar/kecilnya.");
     }
 }
 
@@ -251,7 +267,7 @@ function checkCommunityLock() {
         contentArea.style.display = "block";
         renderUsers();
     } else {
-        lockMessage.innerHTML = `<p style="color:red; font-weight:bold; text-align:center; padding: 20px 0;">⚠️ Fitur Komunitas Terkunci!<br><span style="color:gray; font-weight:normal; font-size:14px;">Kamu harus mengisi form/masuk di tab <b>Daftar / Masuk</b> terlebih dahulu untuk melihat member lainnya.</span></p>`;
+        lockMessage.innerHTML = `<p style="color:red; font-weight:bold; text-align:center; padding: 20px 0;">⚠️ Fitur Komunitas Terkunci!<br><span style="color:gray; font-weight:normal; font-size:14px;">Kamu harus mendaftar atau masuk di tab <b>Daftar / Masuk</b> terlebih dahulu untuk melihat member lainnya.</span></p>`;
         contentArea.style.display = "none";
     }
 }
@@ -259,10 +275,10 @@ function checkCommunityLock() {
 // --- LOGIKA GRUP CHAT ONLINE REALTIME ---
 function checkChatSession() {
     if(currentUser) {
-        document.getElementById('chatUserSession').innerHTML = `Mengirim pesan sebagai: <b>${currentUser}</b>`;
+        document.getElementById('chatUserSession').innerHTML = `Mengirim pesan sebagai: <b>@${currentUser}</b>`;
         document.getElementById('chatInput').disabled = false;
     } else {
-        document.getElementById('chatUserSession').innerHTML = `<span style="color:red;">⚠️ Kamu belum mendaftar. Silakan isi form/masuk di tab <b>Daftar / Masuk</b> terlebih dahulu untuk mendapatkan akses chat!</span>`;
+        document.getElementById('chatUserSession').innerHTML = `<span style="color:red;">⚠️ Kamu belum mendaftar. Silakan mendaftar atau masuk di tab <b>Daftar / Masuk</b> terlebih dahulu untuk mendapatkan akses chat!</span>`;
         document.getElementById('chatInput').disabled = true;
     }
 }
@@ -287,7 +303,8 @@ function renderChats(messagesArray) {
         let isMe = m.username === currentUser;
         let div = document.createElement('div');
         div.className = `msg ${isMe ? 'msg-me' : 'msg-other'}`;
-        div.innerHTML = `<span class="msg-user">${m.username}</span><span class="msg-text">${m.text}</span>`;
+        // PENGGANTIAN: Ditambahkan atribut onclick pada username untuk memicu popup detail profil
+        div.innerHTML = `<span class="msg-user" onclick="viewUserProfile('${m.username}')">@${m.username}</span><span class="msg-text">${m.text}</span>`;
         chatBox.appendChild(div);
     });
     chatBox.scrollTop = chatBox.scrollHeight;
@@ -314,6 +331,26 @@ async function sendChat() {
     }
 }
 
+// --- FUNGSI KLIK USERNAME UTK LIHAT DETAIL PROFIL ---
+function viewUserProfile(username) {
+    // Cari data user di array globalUsers yang sudah dimuat dari Supabase
+    let targetUser = globalUsers.find(u => u.name === username);
+    
+    if(targetUser) {
+        document.getElementById('modalName').innerText = `@${targetUser.name}`;
+        document.getElementById('modalBio').innerText = targetUser.bio || 'Tidak ada bio.';
+        document.getElementById('modalHobby').innerText = targetUser.hobby || '-';
+        document.getElementById('modalWaContainer').innerHTML = `<a class="btn-wa" href="https://wa.me/${targetUser.phone}" target="_blank" onclick="contacts++;updateStats()">Hubungi via WhatsApp</a>`;
+        document.getElementById('profileModal').style.display = "flex";
+    } else {
+        toast("Profil sedang memuat data terbaru, silakan coba lagi...");
+    }
+}
+
+function closeProfileModal() {
+    document.getElementById('profileModal').style.display = "none";
+}
+
 // --- FUNGSI DATABASE MEMBER SUPABASE ---
 async function fetchInitialUsers() {
     const { data, error } = await supabaseClient.from('users').select('*').order('created_at', { ascending: false });
@@ -333,7 +370,12 @@ async function saveUser(){
     let bioVal = document.getElementById('regBio').value.trim();
 
     if(!nameVal || !phoneVal){
-        alert('Nama dan Nomor WhatsApp wajib diisi!');
+        alert('Username dan Nomor WhatsApp wajib diisi!');
+        return;
+    }
+    
+    if(nameVal.includes(" ")) {
+        alert('Username tidak boleh mengandung spasi!');
         return;
     }
 
@@ -342,9 +384,13 @@ async function saveUser(){
     ]);
 
     if (error) {
-        // DETEKSI ERROR NOMOR DUPLIKAT DARI SUPABASE
+        // PENGGANTIAN: Deteksi error duplikat baik nomor telepon ATAU username unik
         if(error.code === "23505") {
-            alert("❌ Gagal mendaftar! Nomor WhatsApp ini sudah terdaftar sebagai membership Comtea. Silakan gunakan fitur 'Hubungkan Perangkat' di bawah jika kamu pindah HP.");
+            if (error.message.includes("users_name_unique") || error.details.includes("name")) {
+                alert("❌ Gagal mendaftar! Username ini sudah dipakai orang lain. Silakan buat username unik yang berbeda.");
+            } else {
+                alert("❌ Gagal mendaftar! Nomor WhatsApp ini sudah terdaftar sebagai membership Comtea.");
+            }
         } else {
             alert('Gagal mendaftar, coba lagi.');
             console.error(error);
@@ -374,7 +420,7 @@ function listenRealtime() {
                 globalUsers.unshift(payload.new);
                 renderUsers();
                 updateStats();
-                toast(`Ada member baru bergabung: ${payload.new.name}! 🎉`);
+                toast(`Member baru terdaftar: @${payload.new.name}! 🎉`);
             }
         })
         .subscribe();
@@ -383,59 +429,3 @@ function listenRealtime() {
         .channel('chat-changes')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, async () => {
             const { data } = await supabaseClient.from('messages').select('*').order('created_at', { ascending: true }).limit(50);
-            if(data) {
-                renderChats(data);
-            }
-        })
-        .subscribe();
-}
-
-function renderUsers(){
-    if(!currentUser) return;
-
-    let q = (document.getElementById('search').value || '').toLowerCase();
-    let usersContainer = document.getElementById('users');
-    usersContainer.innerHTML = '';
-
-    if(globalUsers.length === 0){
-        usersContainer.innerHTML = '<p style="color:gray;">Belum ada anggota yang mendaftar.</p>';
-        return;
-    }
-
-    let filtered = globalUsers.filter(u => 
-        (u.name && u.name.toLowerCase().includes(q)) || 
-        (u.hobby && u.hobby.toLowerCase().includes(q))
-    );
-
-    if(filtered.length === 0){
-        usersContainer.innerHTML = '<p style="color:gray;">Anggota atau hobi tidak ditemukan.</p>';
-        return;
-    }
-
-    filtered.forEach(u => {
-        let score = ((u.id * 17) % 60) + 40; 
-        let badge = score > 85 ? '🔥 Best Match' : score > 65 ? '⭐ Cocok' : '🙂 Kenalan Baru';
-        let div = document.createElement('div');
-        div.className = 'profile';
-        div.innerHTML = `
-            <h3>${u.name}</h3>
-            <p>${u.bio || '-'}</p>
-            <p><b>Hobi:</b> ${u.hobby || '-'}</p>
-            <p><span class='badge'>${badge} (${score}%)</span></p>
-            <a class="btn-wa" href="https://wa.me/${u.phone}" target="_blank" onclick="contacts++;updateStats()">Hubungi WhatsApp</a>`;
-        usersContainer.appendChild(div);
-    });
-}
-
-function incGame(){games++;updateStats()}
-function updateStats(){
-    mCount.innerText = globalUsers.length;
-    gCount.innerText = games;
-    cCount.innerText = contacts;
-}
-
-fetchInitialUsers();
-listenRealtime();
-</script>
-</body>
-</html>
