@@ -172,6 +172,14 @@ let games = 0, contacts = 0;
 let globalUsers = []; 
 let currentUser = localStorage.getItem('comtea_username') || "";
 
+// Fungsi update statistik di dashboard
+function updateStats() {
+    document.getElementById('mCount').innerText = globalUsers.length;
+    document.getElementById('gCount').innerText = games;
+    document.getElementById('cCount').innerText = contacts;
+}
+function incGame() { games++; updateStats(); }
+
 function showPage(id){
     document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
     document.getElementById(id).classList.add('active');
@@ -181,7 +189,10 @@ function showPage(id){
     if(id==='groupchat') {
         checkChatSession();
         fetchInitialChats();
-        setTimeout(() => { chatBox.scrollTop = chatBox.scrollHeight; }, 300);
+        setTimeout(() => { 
+            let chatBox = document.getElementById('chatBox');
+            if(chatBox) chatBox.scrollTop = chatBox.scrollHeight; 
+        }, 300);
     }
 }
 
@@ -193,15 +204,15 @@ function toast(t){
 
 // Data Games & Topics
 const topics=["Kalau bisa tinggal di negara mana pun selama 1 tahun gratis, kamu pilih di mana?","Apa makanan yang bisa kamu makan setiap hari tanpa bosan?","Kalau besok tidak perlu bekerja atau kuliah lagi, kamu akan melakukan apa?","Siapa tokoh terkenal yang paling ingin kamu ajak ngobrol?","Apa skill yang paling ingin kamu kuasai saat ini?"];
-function newTopic(){topicBox.innerText=topics[Math.floor(Math.random()*topics.length)]}
+function newTopic(){ document.getElementById('topicBox').innerText=topics[Math.floor(Math.random()*topics.length)] }
 const truths=["Apa ketakutan terbesarmu?","Siapa crush pertamamu?","Apa hal paling memalukan yang pernah terjadi padamu?"];
 const dares=["Nyanyikan lagu favoritmu selama 20 detik.","Peragakan kucing selama 30 detik.","Bicara dengan aksen Inggris selama 1 menit."];
-function truth(){tod.innerText=truths[Math.floor(Math.random()*truths.length)];incGame()}
-function dare(){tod.innerText=dares[Math.floor(Math.random()*dares.length)];incGame()}
+function truth(){document.getElementById('tod').innerText=truths[Math.floor(Math.random()*truths.length)];incGame()}
+function dare(){document.getElementById('tod').innerText=dares[Math.floor(Math.random()*dares.length)];incGame()}
 const wyrs=[["Bisa terbang", "Bisa tak terlihat"],["Hidup tanpa internet", "Hidup tanpa musik"]];
-function wyr(){let q=wyrs[Math.floor(Math.random()*wyrs.length)];wyrBox.innerHTML=q[0]+" <b>ATAU</b> "+q[1];incGame()}
+function wyr(){let q=wyrs[Math.floor(Math.random()*wyrs.length)];document.getElementById('wyrBox').innerHTML=q[0]+" <b>ATAU</b> "+q[1];incGame()}
 const triv=[{question:"Ibukota Jepang adalah?",options:["Osaka","Tokyo","Kyoto","Nagoya"],answer:1}];
-function trivia(){let t=triv[Math.floor(Math.random()*triv.length)];let h=`<h4>${t.question}</h4>`;t.options.forEach((v,i)=>{h+=`<button class="btn" onclick="checkTrivia(${i},${t.answer})">${v}</button> `;});triviaBox.innerHTML=h;incGame()}
+function trivia(){let t=triv[Math.floor(Math.random()*triv.length)];let h=`<h4>${t.question}</h4>`;t.options.forEach((v,i)=>{h+=`<button class="btn" onclick="checkTrivia(${i},${t.answer})">${v}</button> `;});document.getElementById('triviaBox').innerHTML=h;incGame()}
 function checkTrivia(selected,correct){if(selected===correct){alert("✅ Benar!");}else{alert("❌ Salah!");}}
 
 // --- LOGIKA HALAMAN REGISTER & LOGIN ---
@@ -272,6 +283,33 @@ function checkCommunityLock() {
     }
 }
 
+function renderUsers() {
+    let searchVal = document.getElementById('search').value.toLowerCase();
+    let userBox = document.getElementById('users');
+    userBox.innerHTML = '';
+    
+    let filtered = globalUsers.filter(u => 
+        u.name.toLowerCase().includes(searchVal) || 
+        (u.hobby && u.hobby.toLowerCase().includes(searchVal))
+    );
+    
+    if(filtered.length === 0) {
+        userBox.innerHTML = "<p style='color:gray;'>Tidak ada member yang cocok.</p>";
+        return;
+    }
+    
+    filtered.forEach(u => {
+        let div = document.createElement('div');
+        div.className = 'profile';
+        div.innerHTML = `
+            <strong>@${u.name}</strong> <span class="badge">Member</span>
+            <p style="margin:5px 0 0; font-size:14px; color:#555;">Hobi: ${u.hobby || '-'}</p>
+            <button class="btn" style="margin-top:8px; padding:5px 10px; font-size:12px;" onclick="viewUserProfile('${u.name}')">Lihat Profil</button>
+        `;
+        userBox.appendChild(div);
+    });
+}
+
 // --- LOGIKA GRUP CHAT ONLINE REALTIME ---
 function checkChatSession() {
     if(currentUser) {
@@ -303,7 +341,6 @@ function renderChats(messagesArray) {
         let isMe = m.username === currentUser;
         let div = document.createElement('div');
         div.className = `msg ${isMe ? 'msg-me' : 'msg-other'}`;
-        // PENGGANTIAN: Ditambahkan atribut onclick pada username untuk memicu popup detail profil
         div.innerHTML = `<span class="msg-user" onclick="viewUserProfile('${m.username}')">@${m.username}</span><span class="msg-text">${m.text}</span>`;
         chatBox.appendChild(div);
     });
@@ -333,7 +370,6 @@ async function sendChat() {
 
 // --- FUNGSI KLIK USERNAME UTK LIHAT DETAIL PROFIL ---
 function viewUserProfile(username) {
-    // Cari data user di array globalUsers yang sudah dimuat dari Supabase
     let targetUser = globalUsers.find(u => u.name === username);
     
     if(targetUser) {
@@ -384,7 +420,6 @@ async function saveUser(){
     ]);
 
     if (error) {
-        // PENGGANTIAN: Deteksi error duplikat baik nomor telepon ATAU username unik
         if(error.code === "23505") {
             if (error.message.includes("users_name_unique") || error.details.includes("name")) {
                 alert("❌ Gagal mendaftar! Username ini sudah dipakai orang lain. Silakan buat username unik yang berbeda.");
@@ -429,3 +464,14 @@ function listenRealtime() {
         .channel('chat-changes')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, async () => {
             const { data } = await supabaseClient.from('messages').select('*').order('created_at', { ascending: true }).limit(50);
+            if(data) renderChats(data);
+        })
+        .subscribe();
+}
+
+// Jalankan fungsi inisialisasi setelah dokumen siap
+window.onload = function() {
+    fetchInitialUsers();
+    listenRealtime();
+};
+</script>
