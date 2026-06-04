@@ -20,6 +20,18 @@ input,textarea{width:100%;padding:10px;margin:6px 0;border-radius:8px;border:1px
 .badge{background:var(--green);color:#fff;padding:4px 10px;border-radius:20px;font-size:12px}
 .toast{position:fixed;right:20px;bottom:20px;background:#333;color:#fff;padding:12px;border-radius:10px;display:none;z-index:999}
 .btn-wa{display:inline-block;margin-top:10px;padding:8px 12px;background:#25D366;color:white;text-decoration:none;border-radius:8px;font-weight:bold;font-size:14px}
+
+/* --- STYLE UNTUK GRUP CHAT --- */
+.chat-container { border: 1px solid #ddd; border-radius: 12px; background: #fff; display: flex; flex-direction: column; height: 450px; }
+.chat-box { flex: 1; padding: 15px; overflow-y: auto; background: #fdfbf7; display: flex; flex-direction: column; gap: 10px; }
+.chat-input-area { display: flex; padding: 10px; gap: 8px; border-top: 1px solid #eee; background: #fff; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; }
+.chat-input-area input { flex: 1; margin: 0; }
+.msg { padding: 10px 14px; border-radius: 12px; max-width: 75%; width: fit-content; word-break: break-word; line-height: 1.4; }
+.msg-other { background: #f1f0f0; align-self: flex-start; color: #333; }
+.msg-me { background: #e2f0d9; align-self: flex-end; color: #2e511c; border-bottom-right-radius: 2px; }
+.msg-user { font-weight: bold; font-size: 12px; display: block; margin-bottom: 3px; color: var(--brown); }
+.msg-text { font-size: 14px; }
+.username-info { font-size: 13px; color: gray; margin-bottom: 8px; display: block; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -35,6 +47,7 @@ input,textarea{width:100%;padding:10px;margin:6px 0;border-radius:8px;border:1px
 <button onclick="showPage('topics')">Topik</button>
 <button onclick="showPage('games')">Games</button>
 <button onclick="showPage('community')">Komunitas</button>
+<button onclick="showPage('groupchat')">Grup Chat</button>
 <button onclick="showPage('register')">Daftar</button>
 </nav>
 
@@ -71,8 +84,27 @@ input,textarea{width:100%;padding:10px;margin:6px 0;border-radius:8px;border:1px
 <section id="community" class="page">
 <div class="card">
 <h2>Cari Teman</h2>
+<div id="communityLockMessage"></div>
+<div id="communityContent">
 <input id="search" placeholder="Cari nama atau hobi..." oninput="renderUsers()">
 <div id="users"></div>
+</div>
+</div>
+</section>
+
+<section id="groupchat" class="page">
+<div class="card">
+<h2>Teahouse Group Chat 💬</h2>
+<span id="chatUserSession" class="username-info">Memeriksa status pendaftaran...</span>
+<div class="chat-container">
+<div class="chat-box" id="chatBox">
+<p style="text-align: center; color: gray; font-size: 14px;">Memuat obrolan...</p>
+</div>
+<div class="chat-input-area">
+<input id="chatInput" placeholder="Ketik pesan di sini..." onkeypress="if(event.key==='Enter') sendChat()">
+<button class="btn" onclick="sendChat()">Kirim</button>
+</div>
+</div>
 </div>
 </section>
 
@@ -90,20 +122,29 @@ input,textarea{width:100%;padding:10px;margin:6px 0;border-radius:8px;border:1px
 <div class="toast" id="toast"></div>
 
 <script>
-// Konfigurasi Supabase Kamu
+// Konfigurasi Supabase
 const SUPABASE_URL = "https://ftvsdjazqwbonanaihwh.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ0dnNkamF6cXdib25hbmFpaHdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NjIyNzMsImV4cCI6MjA5NjAzODI3M30.AOJh70E0Opgj86sHKNivkeL1fOptIBAaeoGuSEyRgQY";
 
-// --- PERBAIKAN: Menggunakan window.supabase agar tidak tabrakan nama ---
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let games = 0, contacts = 0;
 let globalUsers = []; 
+let currentUser = localStorage.getItem('comtea_username') || "";
 
 function showPage(id){
     document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
     document.getElementById(id).classList.add('active');
-    if(id==='community') renderUsers();
+    
+    if(id==='community') {
+        // PERBAIKAN: Cek kunci halaman komunitas saat tab diklik
+        checkCommunityLock();
+    }
+    if(id==='groupchat') {
+        checkChatSession();
+        fetchInitialChats();
+        setTimeout(() => { chatBox.scrollTop = chatBox.scrollHeight; }, 300);
+    }
 }
 
 function toast(t){
@@ -113,349 +154,92 @@ function toast(t){
 }
 
 // Data Games & Topics
-const topics=[
-  "Kalau bisa tinggal di negara mana pun selama 1 tahun gratis, kamu pilih di mana?",
-  "Apa makanan yang bisa kamu makan setiap hari tanpa bosan?",
-  "Kalau besok tidak perlu bekerja atau kuliah lagi, kamu akan melakukan apa?",
-  "Siapa tokoh terkenal yang paling ingin kamu ajak ngobrol?",
-  "Apa skill yang paling ingin kamu kuasai saat ini?",
-  "Kalau bisa mengulang satu momen dalam hidup, momen apa itu?",
-  "Apa hal paling spontan yang pernah kamu lakukan?",
-  "Film apa yang paling mengubah cara pandangmu terhadap hidup?",
-  "Kalau uang bukan masalah, bisnis apa yang ingin kamu bangun?",
-  "Apa kebiasaan kecil yang membuat harimu lebih baik?",
-  "Apa tempat paling indah yang pernah kamu kunjungi?",
-  "Apa aplikasi yang paling sering kamu buka setiap hari?",
-  "Kalau bisa bertemu dirimu 10 tahun ke depan, apa yang ingin kamu tanyakan?",
-  "Apa cita-citamu waktu kecil?",
-  "Kalau bisa punya kekuatan super, kamu pilih apa?",
-  "Apa hal yang paling membuatmu tertawa akhir-akhir ini?",
-  "Siapa guru atau mentor yang paling berpengaruh dalam hidupmu?",
-  "Apa pencapaian yang paling kamu banggakan?",
-  "Kalau harus makan satu menu seumur hidup, pilih apa?",
-  "Apa hal yang sedang kamu pelajari saat ini?",
-  "Apa lagu yang tidak pernah bosan kamu dengarkan?",
-  "Kalau bisa tinggal di masa lalu atau masa depan, pilih yang mana?",
-  "Apa pekerjaan impianmu?",
-  "Apa pengalaman yang paling membuatmu bersyukur?",
-  "Apa ketakutan terbesar yang pernah berhasil kamu atasi?",
-  "Kalau punya mesin waktu, kamu akan pergi ke tahun berapa?",
-  "Apa barang yang selalu kamu bawa ke mana-mana?",
-  "Kalau bisa liburan sekarang juga, mau ke mana?",
-  "Apa makanan khas daerah favoritmu?",
-  "Apa kebiasaan unik yang kamu punya?",
-  "Kalau bisa menguasai satu bahasa asing dalam semalam, bahasa apa?",
-  "Apa momen paling memalukan yang sekarang justru lucu?",
-  "Apa game favoritmu sepanjang masa?",
-  "Kalau harus hidup tanpa internet atau tanpa AC, pilih yang mana?",
-  "Apa serial TV yang paling kamu rekomendasikan?",
-  "Apa hobi yang ingin kamu coba tetapi belum sempat?",
-  "Kalau bisa membuka usaha sendiri, usaha apa?",
-  "Apa hal sederhana yang membuatmu bahagia?",
-  "Apa pelajaran hidup yang paling penting menurutmu?",
-  "Kalau mendapat 100 juta hari ini, apa yang pertama kamu lakukan?",
-  "Apa destinasi wisata Indonesia yang paling ingin kamu kunjungi?",
-  "Apa impian yang belum tercapai sampai sekarang?",
-  "Apa kenangan sekolah yang paling berkesan?",
-  "Apa makanan yang menurutmu overrated?",
-  "Apa makanan yang menurutmu underrated?",
-  "Kalau bisa menghapus satu aturan sosial, apa itu?",
-  "Apa barang paling aneh yang pernah kamu beli?",
-  "Apa kebiasaan yang ingin kamu hentikan?",
-  "Apa kebiasaan yang ingin kamu mulai?",
-  "Kalau bisa hidup sebagai karakter film selama sehari, siapa?",
-  "Apa pencapaian kecil yang membuatmu bangga minggu ini?",
-  "Apa keputusan terbaik yang pernah kamu buat?",
-  "Apa keputusan yang paling kamu sesali?",
-  "Kalau harus pindah kota besok, kota mana yang kamu pilih?",
-  "Apa hal paling random yang pernah terjadi padamu?",
-  "Apa cara favoritmu menghabiskan akhir pekan?",
-  "Apa makanan yang paling kamu rindukan dari masa kecil?",
-  "Kalau bisa bertukar hidup dengan seseorang selama sehari, siapa?",
-  "Apa yang membuatmu langsung nyaman dengan seseorang?",
-  "Apa yang membuatmu sulit percaya pada seseorang?",
-  "Apa definisi sukses menurutmu?",
-  "Apa definisi bahagia menurutmu?",
-  "Apa tempat nongkrong favoritmu?",
-  "Apa minuman favoritmu selain teh?",
-  "Kalau harus belajar satu alat musik, pilih apa?",
-  "Apa olahraga yang paling kamu suka?",
-  "Apa olahraga yang paling tidak kamu suka?",
-  "Kalau bisa jadi atlet profesional, olahraga apa yang dipilih?",
-  "Apa aplikasi paling berguna menurutmu?",
-  "Apa teknologi yang paling membantu hidupmu?",
-  "Apa tren yang menurutmu aneh?",
-  "Apa tren yang menurutmu bagus?",
-  "Apa impian masa kecil yang masih ingin kamu wujudkan?",
-  "Kalau bisa mengadakan festival sendiri, temanya apa?",
-  "Apa acara TV favorit waktu kecil?",
-  "Apa jajanan favorit waktu sekolah?",
-  "Apa momen paling berani yang pernah kamu lakukan?",
-  "Apa tantangan terbesar yang pernah kamu hadapi?",
-  "Apa hal yang ingin kamu lakukan sebelum usia 40 tahun?",
-  "Kalau bisa memberi nasihat ke semua orang, apa isi nasihatnya?",
-  "Apa kebiasaan yang paling mengganggumu dari orang lain?",
-  "Apa sifat yang paling kamu kagumi dari seseorang?",
-  "Apa kualitas yang paling penting dalam pertemanan?",
-  "Apa kualitas yang paling penting dalam pasangan hidup?",
-  "Apa pengalaman kerja atau kuliah paling lucu?",
-  "Kalau bisa mengubah satu hal di dunia, apa itu?",
-  "Apa negara yang paling ingin kamu kunjungi?",
-  "Apa kota di Indonesia yang paling ingin kamu jelajahi?",
-  "Apa film yang bisa kamu tonton berkali-kali?",
-  "Apa buku yang paling berkesan bagimu?",
-  "Apa podcast favoritmu?",
-  "Apa channel YouTube yang paling sering kamu tonton?",
-  "Apa hal paling menarik yang kamu pelajari tahun ini?",
-  "Apa target terbesarmu tahun ini?",
-  "Apa hal yang sedang membuatmu semangat akhir-akhir ini?",
-  "Kalau hidupmu dijadikan film, judulnya apa?",
-  "Kalau hidupmu punya soundtrack, lagu apa yang cocok?",
-  "Apa cerita paling seru yang pernah kamu alami saat travelling?",
-  "Apa hal paling lucu yang pernah terjadi saat nongkrong dengan teman?"
-];
+const topics=["Kalau bisa tinggal di negara mana pun selama 1 tahun gratis, kamu pilih di mana?","Apa makanan yang bisa kamu makan setiap hari tanpa bosan?","Kalau besok tidak perlu bekerja atau kuliah lagi, kamu akan melakukan apa?","Siapa tokoh terkenal yang paling ingin kamu ajak ngobrol?","Apa skill yang paling ingin kamu kuasai saat ini?"];
 function newTopic(){topicBox.innerText=topics[Math.floor(Math.random()*topics.length)]}
-const truths=[
-"Apa ketakutan terbesarmu?",
-"Siapa crush pertamamu?",
-"Apa hal paling memalukan yang pernah terjadi padamu?",
-"Pernah berbohong kepada sahabat? Tentang apa?",
-"Apa kebiasaan buruk yang ingin kamu hilangkan?",
-"Hal apa yang paling kamu sesali?",
-"Apa rahasia yang belum banyak orang tahu?",
-"Pernah menyukai teman sendiri?",
-"Siapa orang terakhir yang kamu stalking di media sosial?",
-"Pernah pura-pura sakit agar tidak datang ke suatu acara?",
-"Apa kebohongan terbesar yang pernah kamu katakan?",
-"Apa hal paling aneh yang pernah kamu cari di internet?",
-"Siapa orang yang paling sering kamu pikirkan akhir-akhir ini?",
-"Pernah menangis karena film? Film apa?",
-"Apa hal paling kekanak-kanakan yang masih kamu lakukan?",
-"Apa sifat burukmu yang paling mengganggu?",
-"Pernah cemburu pada teman sendiri?",
-"Apa ketakutan yang belum berhasil kamu atasi?",
-"Apa impian terbesarmu?",
-"Pernah suka dengan pasangan teman?",
-"Apa hal paling berani yang pernah kamu lakukan?",
-"Apa hal paling memalukan saat sekolah?",
-"Apa alasan terakhir kamu menangis?",
-"Pernah menyimpan rahasia besar dari keluarga?",
-"Apa hal yang paling ingin kamu ubah dari dirimu?",
-"Siapa orang yang paling menginspirasimu?",
-"Apa pencapaian yang paling kamu banggakan?",
-"Pernah membuat orang lain kecewa?",
-"Apa penyesalan terbesar tahun ini?",
-"Jika bisa mengulang hidup, apa yang ingin kamu ubah?",
-"Siapa orang yang paling membuatmu nyaman?",
-"Apa ketakutan terbesar tentang masa depan?",
-"Pernah iri dengan kehidupan orang lain?",
-"Apa kebiasaan anehmu saat sendirian?",
-"Apa hal yang paling membuatmu malu?",
-"Apa alasan terakhir kamu tertawa sampai sakit perut?",
-"Apa mimpi paling aneh yang pernah kamu alami?",
-"Pernah mengirim chat ke orang yang salah?",
-"Apa kebiasaan yang tidak diketahui banyak orang?",
-"Pernah berpura-pura menyukai sesuatu agar diterima teman?"
-];
-
-const dares=[
-"Nyanyikan lagu favoritmu selama 20 detik.",
-"Peragakan kucing selama 30 detik.",
-"Bicara dengan aksen Inggris selama 1 menit.",
-"Perkenalkan diri seperti presenter TV.",
-"Pose seperti superhero selama 30 detik.",
-"Buat iklan teh COMTEA selama 20 detik.",
-"Tiru gaya berjalan model.",
-"Tertawa tanpa alasan selama 20 detik.",
-"Ceritakan lelucon terbaikmu.",
-"Tirukan suara hewan favoritmu.",
-"Buat pantun spontan.",
-"Tari selama 30 detik.",
-"Ucapkan alfabet terbalik semampumu.",
-"Buat ekspresi wajah paling lucu.",
-"Tiru karakter film favoritmu.",
-"Buat pidato kemenangan seperti pemenang Oscar.",
-"Bicara tanpa huruf 'A' selama 1 menit.",
-"Buat cerita horor 30 detik.",
-"Berjalan seperti robot.",
-"Jelaskan manfaat teh seperti ilmuwan.",
-"Buat rap singkat tentang teh.",
-"Bernyanyi sambil menutup mata.",
-"Tirukan guru saat mengajar.",
-"Tirukan suara bayi.",
-"Pose foto paling aneh.",
-"Buat slogan baru untuk COMTEA.",
-"Bicara seperti narator film dokumenter.",
-"Tirukan orang terkenal.",
-"Buat tarian unik sendiri.",
-"Berjalan mundur selama 15 detik.",
-"Peragakan olahraga favoritmu tanpa bicara.",
-"Buat suara kendaraan.",
-"Jadi pembawa berita selama 30 detik.",
-"Tirukan karakter kartun.",
-"Ucapkan tongue twister 3 kali cepat.",
-"Buat iklan produk imajiner.",
-"Jelaskan cara membuat teh dengan sangat dramatis.",
-"Peragakan sedang memenangkan lomba.",
-"Buat ekspresi terkejut selama 10 detik.",
-"Tirukan teman di meja."];
+const truths=["Apa ketakutan terbesarmu?","Siapa crush pertamamu?","Apa hal paling memalukan yang pernah terjadi padamu?"];
+const dares=["Nyanyikan lagu favoritmu selama 20 detik.","Peragakan kucing selama 30 detik.","Bicara dengan aksen Inggris selama 1 menit."];
 function truth(){tod.innerText=truths[Math.floor(Math.random()*truths.length)];incGame()}
 function dare(){tod.innerText=dares[Math.floor(Math.random()*dares.length)];incGame()}
-const wyrs=[
-["Bisa terbang", "Bisa tak terlihat"],
-["Hidup tanpa internet", "Hidup tanpa musik"],
-["Selalu kepanasan", "Selalu kedinginan"],
-["Bisa bicara semua bahasa", "Bisa memainkan semua alat musik"],
-["Kaya raya", "Terkenal"],
-["Tinggal di pantai", "Tinggal di pegunungan"],
-["Punya mobil mewah", "Keliling dunia gratis"],
-["Tidak pernah tidur", "Tidak pernah lapar"],
-["Bisa membaca pikiran", "Bisa melihat masa depan"],
-["Menjadi superhero", "Menjadi miliarder"],
-["Punya waktu tak terbatas", "Punya uang tak terbatas"],
-["Bisa teleportasi", "Bisa terbang"],
-["Hidup di masa lalu", "Hidup di masa depan"],
-["Selalu jujur", "Selalu baik hati"],
-["Punya 1 sahabat sejati", "Punya 100 teman biasa"],
-["Liburan sebulan", "Weekend panjang setiap minggu"],
-["Bekerja dari rumah", "Keliling dunia untuk bekerja"],
-["Jadi atlet terkenal", "Jadi musisi terkenal"],
-["Punya restoran", "Punya kafe teh"],
-["Menang lotre", "Mendapat pekerjaan impian"],
-["Tidak pernah gagal", "Tidak pernah ditolak"],
-["Tinggal tanpa AC", "Tinggal tanpa WiFi"],
-["Bisa bernapas di air", "Bisa terbang"],
-["Menjadi sangat pintar", "Menjadi sangat kreatif"],
-["Makan makanan favorit selamanya", "Mencoba makanan baru setiap hari"],
-["Punya hari libur ekstra", "Punya uang saku ekstra"],
-["Bisa menghentikan waktu", "Bisa memundurkan waktu"],
-["Selalu menang debat", "Selalu disukai orang"],
-["Menjadi penulis", "Menjadi sutradara"],
-["Punya rumah besar", "Punya banyak pengalaman hidup"]
-];
+const wyrs=[["Bisa terbang", "Bisa tak terlihat"],["Hidup tanpa internet", "Hidup tanpa musik"]];
 function wyr(){let q=wyrs[Math.floor(Math.random()*wyrs.length)];wyrBox.innerHTML=q[0]+" <b>ATAU</b> "+q[1];incGame()}
-const triv=[
-{
-question:"Ibukota Jepang adalah?",
-options:["Osaka","Tokyo","Kyoto","Nagoya"],
-answer:1
-},
-{
-question:"Planet terbesar di tata surya?",
-options:["Mars","Saturnus","Jupiter","Neptunus"],
-answer:2
-},
-{
-question:"2 + 8 × 5 = ?",
-options:["50","42","40","48"],
-answer:1
-},
-{
-question:"Siapa penemu telepon?",
-options:[
-"Thomas Edison",
-"Alexander Graham Bell",
-"Nikola Tesla",
-"James Watt"
-],
-answer:1
-},
-{
-question:"Warna hasil campuran merah dan biru?",
-options:["Hijau","Oranye","Ungu","Coklat"],
-answer:2
-},
-{
-question:"Benua terbesar di dunia?",
-options:["Afrika","Asia","Amerika","Eropa"],
-answer:1
-},
-{
-question:"Berapa jumlah hari dalam tahun kabisat?",
-options:["364","365","366","367"],
-answer:2
-},
-{
-question:"Gunung tertinggi di dunia?",
-options:[
-"Kilimanjaro",
-"Everest",
-"Fuji",
-"Elbrus"
-],
-answer:1
-},
-{
-question:"Bahasa resmi Brasil?",
-options:[
-"Spanyol",
-"Portugis",
-"Inggris",
-"Prancis"
-],
-answer:1
-},
-{
-question:"Hewan tercepat di darat?",
-options:[
-"Cheetah",
-"Kuda",
-"Singa",
-"Harimau"
-],
-answer:0
-},
-{
-question:"Siapa pelukis Mona Lisa?",
-options:[
-"Van Gogh",
-"Leonardo da Vinci",
-"Picasso",
-"Michelangelo"
-],
-answer:1
-},
-{
-question:"Negara dengan populasi terbesar?",
-options:[
-"India",
-"China",
-"Amerika Serikat",
-"Indonesia"
-],
-answer:0
-},
-{
-question:"Berapa sisi kubus?",
-options:["4","6","8","12"],
-answer:1
-},
-{
-question:"Bahan utama teh berasal dari?",
-options:[
-"Daun Camellia sinensis",
-"Daun mint",
-"Daun pandan",
-"Daun kopi"
-],
-answer:0
-},
-{
-question:"Samudra terbesar di dunia?",
-options:[
-"Atlantik",
-"Pasifik",
-"Hindia",
-"Arktik"
-],
-answer:1
-}
-];
+const triv=[{question:"Ibukota Jepang adalah?",options:["Osaka","Tokyo","Kyoto","Nagoya"],answer:1}];
 function trivia(){let t=triv[Math.floor(Math.random()*triv.length)];let h=`<h4>${t.question}</h4>`;t.options.forEach((v,i)=>{h+=`<button class="btn" onclick="checkTrivia(${i},${t.answer})">${v}</button> `;});triviaBox.innerHTML=h;incGame()}
 function checkTrivia(selected,correct){if(selected===correct){alert("✅ Benar!");}else{alert("❌ Salah!");}}
 
-// --- FUNGSI DATABASE SUPABASE ---
+// --- LOGIKA PENGUNCIAN TAB KOMUNITAS ---
+function checkCommunityLock() {
+    let lockMessage = document.getElementById('communityLockMessage');
+    let contentArea = document.getElementById('communityContent');
+    
+    if(currentUser) {
+        lockMessage.innerHTML = ""; // Bersihkan pesan error
+        contentArea.style.display = "block"; // Tampilkan isi data teman
+        renderUsers();
+    } else {
+        lockMessage.innerHTML = `<p style="color:red; font-weight:bold; text-align:center; padding: 20px 0;">⚠️ Fitur Komunitas Terkunci!<br><span style="color:gray; font-weight:normal; font-size:14px;">Kamu harus mengisi formulir di tab <b>Daftar</b> terlebih dahulu untuk melihat member lainnya.</span></p>`;
+        contentArea.style.display = "none"; // Sembunyikan kolom pencarian & profil
+    }
+}
 
+// --- LOGIKA GRUP CHAT ONLINE REALTIME ---
+function checkChatSession() {
+    if(currentUser) {
+        document.getElementById('chatUserSession').innerHTML = `Mengirim pesan sebagai: <b>${currentUser}</b>`;
+        document.getElementById('chatInput').disabled = false;
+    } else {
+        document.getElementById('chatUserSession').innerHTML = `<span style="color:red;">⚠️ Kamu belum mendaftar. Silakan isi form di tab <b>Daftar</b> terlebih dahulu untuk mendapatkan username chat!</span>`;
+        document.getElementById('chatInput').disabled = true;
+    }
+}
+
+async function fetchInitialChats() {
+    const { data, error } = await supabaseClient.from('messages').select('*').order('created_at', { ascending: true }).limit(50);
+    if (!error && data) {
+        renderChats(data);
+    }
+}
+
+function renderChats(messagesArray) {
+    let chatBox = document.getElementById('chatBox');
+    chatBox.innerHTML = '';
+    
+    if(messagesArray.length === 0) {
+        chatBox.innerHTML = '<p style="text-align: center; color: gray; font-size: 14px;">Belum ada obrolan. Yuk mulai sapa teman-teman!</p>';
+        return;
+    }
+
+    messagesArray.forEach(m => {
+        let isMe = m.username === currentUser;
+        let div = document.createElement('div');
+        div.className = `msg ${isMe ? 'msg-me' : 'msg-other'}`;
+        div.innerHTML = `<span class="msg-user">${m.username}</span><span class="msg-text">${m.text}</span>`;
+        chatBox.appendChild(div);
+    });
+    chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+async function sendChat() {
+    let input = document.getElementById('chatInput');
+    let messageText = input.value.trim();
+    
+    if(!currentUser) {
+        alert("Kamu harus mendaftar di tab 'Daftar' terlebih dahulu!");
+        return;
+    }
+    if(!messageText) return;
+
+    input.value = '';
+
+    const { error } = await supabaseClient.from('messages').insert([
+        { username: currentUser, text: messageText }
+    ]);
+
+    if(error) {
+        console.error("Gagal mengirim pesan:", error);
+    }
+}
+
+// --- FUNGSI DATABASE MEMBER SUPABASE ---
 async function fetchInitialUsers() {
     const { data, error } = await supabaseClient.from('users').select('*').order('created_at', { ascending: false });
     if (error) {
@@ -468,10 +252,10 @@ async function fetchInitialUsers() {
 }
 
 async function saveUser(){
-    let nameVal = document.getElementById('regName').value;
-    let phoneVal = document.getElementById('regPhone').value;
-    let hobbyVal = document.getElementById('regHobby').value;
-    let bioVal = document.getElementById('regBio').value;
+    let nameVal = document.getElementById('regName').value.trim();
+    let phoneVal = document.getElementById('regPhone').value.trim();
+    let hobbyVal = document.getElementById('regHobby').value.trim();
+    let bioVal = document.getElementById('regBio').value.trim();
 
     if(!nameVal || !phoneVal){
         alert('Nama dan Nomor WhatsApp wajib diisi!');
@@ -488,6 +272,9 @@ async function saveUser(){
         return;
     }
 
+    currentUser = nameVal;
+    localStorage.setItem('comtea_username', nameVal);
+
     document.getElementById('regName').value = '';
     document.getElementById('regPhone').value = '';
     document.getElementById('regHobby').value = '';
@@ -496,7 +283,7 @@ async function saveUser(){
     toast('Pendaftaran berhasil!');
     
     await fetchInitialUsers();
-    showPage('community');
+    showPage('groupchat'); // Pindah otomatis ke grup chat setelah mendaftar
 }
 
 function listenRealtime() {
@@ -511,9 +298,22 @@ function listenRealtime() {
             }
         })
         .subscribe();
+
+    supabaseClient
+        .channel('chat-changes')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, async () => {
+            const { data } = await supabaseClient.from('messages').select('*').order('created_at', { ascending: true }).limit(50);
+            if(data) {
+                renderChats(data);
+            }
+        })
+        .subscribe();
 }
 
 function renderUsers(){
+    // Jika tidak lolos validasi pendaftaran, fungsi render distop
+    if(!currentUser) return;
+
     let q = (document.getElementById('search').value || '').toLowerCase();
     let usersContainer = document.getElementById('users');
     usersContainer.innerHTML = '';
