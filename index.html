@@ -13,13 +13,17 @@ nav button,.btn{border:none;padding:10px 16px;border-radius:10px;cursor:pointer;
 .page{display:none;padding:20px;max-width:1200px;margin:auto}
 .active{display:block}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:15px}
-.card{background:#fff;border-radius:18px;padding:18px;box-shadow:0 4px 12px rgba(0,0,0,.08)}
+.card{background:#fff;border-radius:18px;padding:18px;box-shadow:0 4px 12px rgba(0,0,0,.08);margin-bottom:15px}
 .stat{font-size:32px;font-weight:bold;color:var(--brown)}
 input,textarea{width:100%;padding:10px;margin:6px 0;border-radius:8px;border:1px solid #ccc}
 .profile{border:1px solid #ddd;border-radius:14px;padding:12px;margin:10px 0;background:#fafafa}
 .badge{background:var(--green);color:#fff;padding:4px 10px;border-radius:20px;font-size:12px}
 .toast{position:fixed;right:20px;bottom:20px;background:#333;color:#fff;padding:12px;border-radius:10px;display:none;z-index:999}
 .btn-wa{display:inline-block;margin-top:10px;padding:8px 12px;background:#25D366;color:white;text-decoration:none;border-radius:8px;font-weight:bold;font-size:14px}
+.note-box{background:#fff3cd;border-left:5px solid #ffc107;padding:12px;margin:10px 0;border-radius:6px;font-size:13px;color:#664d03;line-height:1.4}
+.divider{text-align:center;margin:20px 0;font-weight:bold;color:gray;position:relative}
+.divider::before, .divider::after{content:"";position:absolute;top:50%;width:40%;height:1px;background:#ccc}
+.divider::before{left:0} .divider::after{right:0}
 
 /* --- STYLE UNTUK GRUP CHAT --- */
 .chat-container { border: 1px solid #ddd; border-radius: 12px; background: #fff; display: flex; flex-direction: column; height: 450px; }
@@ -48,7 +52,7 @@ input,textarea{width:100%;padding:10px;margin:6px 0;border-radius:8px;border:1px
 <button onclick="showPage('games')">Games</button>
 <button onclick="showPage('community')">Komunitas</button>
 <button onclick="showPage('groupchat')">Grup Chat</button>
-<button onclick="showPage('register')">Daftar</button>
+<button onclick="showPage('register')">Daftar / Masuk</button>
 </nav>
 
 <section id="dashboard" class="page active">
@@ -109,13 +113,30 @@ input,textarea{width:100%;padding:10px;margin:6px 0;border-radius:8px;border:1px
 </section>
 
 <section id="register" class="page">
-<div class="card">
-<h2>Daftarkan Dirimu</h2>
-<input id="regName" placeholder="Nama">
-<input id="regPhone" placeholder="Nomor WhatsApp (Contoh: 62812345678)">
-<input id="regHobby" placeholder="Hobi (musik, film, travel...)">
-<textarea id="regBio" placeholder="Bio singkat"></textarea>
-<button class="btn" onclick="saveUser()">Daftar</button>
+<div id="currentSessionCard" class="card" style="display:none; background:#e2f0d9;">
+    <h3 style="margin-top:0; color:#2e511c;">👋 Halo, <span id="sessionNameDisplay"></span>!</h3>
+    <p style="font-size:14px; color:#3e662b; margin-bottom:12px;">Perangkat ini sudah terhubung dengan akun membership kamu. Kamu bebas mengakses tab Komunitas dan Grup Chat.</p>
+    <button class="btn" style="background:#5c3d2e;" onclick="logoutUser()">Ganti Akun / Keluar</button>
+</div>
+
+<div id="registerFormCard" class="card">
+    <h2>Daftarkan Dirimu</h2>
+    <div class="note-box">
+        ℹ️ <b>Pemberitahuan Penting:</b><br>
+        Nomor WhatsApp yang kamu cantumkan di bawah ini akan digunakan sekaligus sebagai <b>Nomor Membership Toko</b> dan identitas kamu untuk bergabung ke dalam <b>Komunitas Comtea</b>. Setiap nomor hanya bisa didaftarkan satu kali.
+    </div>
+    <input id="regName" placeholder="Nama / Username">
+    <input id="regPhone" placeholder="Nomor WhatsApp (Contoh: 62812345678)">
+    <input id="regHobby" placeholder="Hobi (musik, film, travel...)">
+    <textarea id="regBio" placeholder="Bio singkat"></textarea>
+    <button class="btn" onclick="saveUser()">Daftar Sebagai Member</button>
+
+    <div class="divider">ATAU</div>
+
+    <h2>Buka di Perangkat Lain?</h2>
+    <p style="font-size:14px; color:gray; margin-top:0;">Jika kamu sudah pernah mendaftar di HP/perangkat lain, masukkan Nama/Username terdaftar kamu di bawah ini untuk sinkronisasi data:</p>
+    <input id="loginName" placeholder="Masukkan Nama/Username Kamu">
+    <button class="btn" style="background:var(--brown);" onclick="loginUser()">Hubungkan Perangkat</button>
 </div>
 </section>
 
@@ -136,10 +157,8 @@ function showPage(id){
     document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
     document.getElementById(id).classList.add('active');
     
-    if(id==='community') {
-        // PERBAIKAN: Cek kunci halaman komunitas saat tab diklik
-        checkCommunityLock();
-    }
+    if(id==='register') renderRegisterPage();
+    if(id==='community') checkCommunityLock();
     if(id==='groupchat') {
         checkChatSession();
         fetchInitialChats();
@@ -166,18 +185,74 @@ const triv=[{question:"Ibukota Jepang adalah?",options:["Osaka","Tokyo","Kyoto",
 function trivia(){let t=triv[Math.floor(Math.random()*triv.length)];let h=`<h4>${t.question}</h4>`;t.options.forEach((v,i)=>{h+=`<button class="btn" onclick="checkTrivia(${i},${t.answer})">${v}</button> `;});triviaBox.innerHTML=h;incGame()}
 function checkTrivia(selected,correct){if(selected===correct){alert("✅ Benar!");}else{alert("❌ Salah!");}}
 
+// --- LOGIKA HALAMAN REGISTER & LOGIN ---
+function renderRegisterPage() {
+    let sessionCard = document.getElementById('currentSessionCard');
+    let formCard = document.getElementById('registerFormCard');
+    
+    if(currentUser) {
+        document.getElementById('sessionNameDisplay').innerText = currentUser;
+        sessionCard.style.display = "block";
+        formCard.style.display = "none";
+    } else {
+        sessionCard.style.display = "none";
+        formCard.style.display = "block";
+    }
+}
+
+// FUNGSI UNTUK AUTO-SAVE / SINKRONISASI AKUN DI DEVICE LAIN
+async function loginUser() {
+    let inputName = document.getElementById('loginName').value.trim();
+    if(!inputName) {
+        alert("Silakan masukkan Nama/Username terdaftar kamu!");
+        return;
+    }
+
+    // Cari nama di database Supabase
+    const { data, error } = await supabaseClient
+        .from('users')
+        .select('name')
+        .eq('name', inputName)
+        .maybeSingle();
+
+    if(error) {
+        alert("Terjadi kesalahan sistem, coba lagi.");
+        return;
+    }
+
+    if(data) {
+        // Jika nama ditemukan, auto-save ke device baru ini
+        currentUser = data.name;
+        localStorage.setItem('comtea_username', data.name);
+        toast(`Berhasil sinkronisasi! Selamat datang kembali, ${data.name}.`);
+        document.getElementById('loginName').value = '';
+        showPage('dashboard');
+    } else {
+        alert("Nama/Username tidak ditemukan. Pastikan ketikan huruf besar/kecilnya sama persis saat mendaftar.");
+    }
+}
+
+function logoutUser() {
+    if(confirm("Apakah kamu ingin keluar dari akun ini di perangkat ini?")) {
+        localStorage.removeItem('comtea_username');
+        currentUser = "";
+        toast("Berhasil keluar.");
+        showPage('register');
+    }
+}
+
 // --- LOGIKA PENGUNCIAN TAB KOMUNITAS ---
 function checkCommunityLock() {
     let lockMessage = document.getElementById('communityLockMessage');
     let contentArea = document.getElementById('communityContent');
     
     if(currentUser) {
-        lockMessage.innerHTML = ""; // Bersihkan pesan error
-        contentArea.style.display = "block"; // Tampilkan isi data teman
+        lockMessage.innerHTML = "";
+        contentArea.style.display = "block";
         renderUsers();
     } else {
-        lockMessage.innerHTML = `<p style="color:red; font-weight:bold; text-align:center; padding: 20px 0;">⚠️ Fitur Komunitas Terkunci!<br><span style="color:gray; font-weight:normal; font-size:14px;">Kamu harus mengisi formulir di tab <b>Daftar</b> terlebih dahulu untuk melihat member lainnya.</span></p>`;
-        contentArea.style.display = "none"; // Sembunyikan kolom pencarian & profil
+        lockMessage.innerHTML = `<p style="color:red; font-weight:bold; text-align:center; padding: 20px 0;">⚠️ Fitur Komunitas Terkunci!<br><span style="color:gray; font-weight:normal; font-size:14px;">Kamu harus mengisi form/masuk di tab <b>Daftar / Masuk</b> terlebih dahulu untuk melihat member lainnya.</span></p>`;
+        contentArea.style.display = "none";
     }
 }
 
@@ -187,7 +262,7 @@ function checkChatSession() {
         document.getElementById('chatUserSession').innerHTML = `Mengirim pesan sebagai: <b>${currentUser}</b>`;
         document.getElementById('chatInput').disabled = false;
     } else {
-        document.getElementById('chatUserSession').innerHTML = `<span style="color:red;">⚠️ Kamu belum mendaftar. Silakan isi form di tab <b>Daftar</b> terlebih dahulu untuk mendapatkan username chat!</span>`;
+        document.getElementById('chatUserSession').innerHTML = `<span style="color:red;">⚠️ Kamu belum mendaftar. Silakan isi form/masuk di tab <b>Daftar / Masuk</b> terlebih dahulu untuk mendapatkan akses chat!</span>`;
         document.getElementById('chatInput').disabled = true;
     }
 }
@@ -223,7 +298,7 @@ async function sendChat() {
     let messageText = input.value.trim();
     
     if(!currentUser) {
-        alert("Kamu harus mendaftar di tab 'Daftar' terlebih dahulu!");
+        alert("Kamu harus mendaftar terlebih dahulu!");
         return;
     }
     if(!messageText) return;
@@ -267,8 +342,13 @@ async function saveUser(){
     ]);
 
     if (error) {
-        alert('Gagal mendaftar, coba lagi.');
-        console.error(error);
+        // DETEKSI ERROR NOMOR DUPLIKAT DARI SUPABASE
+        if(error.code === "23505") {
+            alert("❌ Gagal mendaftar! Nomor WhatsApp ini sudah terdaftar sebagai membership Comtea. Silakan gunakan fitur 'Hubungkan Perangkat' di bawah jika kamu pindah HP.");
+        } else {
+            alert('Gagal mendaftar, coba lagi.');
+            console.error(error);
+        }
         return;
     }
 
@@ -283,7 +363,7 @@ async function saveUser(){
     toast('Pendaftaran berhasil!');
     
     await fetchInitialUsers();
-    showPage('groupchat'); // Pindah otomatis ke grup chat setelah mendaftar
+    showPage('groupchat'); 
 }
 
 function listenRealtime() {
@@ -311,7 +391,6 @@ function listenRealtime() {
 }
 
 function renderUsers(){
-    // Jika tidak lolos validasi pendaftaran, fungsi render distop
     if(!currentUser) return;
 
     let q = (document.getElementById('search').value || '').toLowerCase();
@@ -355,7 +434,6 @@ function updateStats(){
     cCount.innerText = contacts;
 }
 
-// Menjalankan fungsi awal saat web dimuat
 fetchInitialUsers();
 listenRealtime();
 </script>
